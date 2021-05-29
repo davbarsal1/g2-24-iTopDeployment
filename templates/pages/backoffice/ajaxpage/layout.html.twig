@@ -1,0 +1,181 @@
+{# @copyright   Copyright (C) 2010-2021 Combodo SARL #}
+{# @license     http://opensource.org/licenses/AGPL-3.0 #}
+{% apply spaceless %}
+    {% if bEscapeContent %}
+        {{ render_block(oLayout, {aPage: aPage})|escape }}
+    {% else %}
+        {{ render_block(oLayout, {aPage: aPage}) }}
+    {% endif %}
+
+	{% block iboPageJsInlineLive %}
+		{% for sJsInline in aPage.aJsInlineLive %}
+			{# We put each scripts in a dedicated script tag to prevent massive failure if 1 script is broken (eg. missing semi-colon or non closed multi-line comment) #}
+			<script type="text/javascript">
+				{{ sJsInline|raw }}
+			</script>
+		{% endfor %}
+		{% for sJsInline in aPage.aJsInlineOnInit %}
+			<script type="text/javascript">
+				{{ sJsInline|raw }}
+			</script>
+		{% endfor %}
+	{% endblock %}
+
+	{% if aPage.aJsFiles is not empty %}
+        {% set sId = oLayout.GetId() | sanitize(constant('utils::ENUM_SANITIZATION_FILTER_VARIABLE_NAME')) %}
+        {% block iboPageJsFiles %}
+            <script type="text/javascript">
+            var aFilesToLoad{{ sId }} = [];
+            {# manage Dictionary file if exist #}
+            var sUrlDictFile = '';
+            {% if aPage.sDictScript is not empty %}
+            if ($.inArray('{{ aPage.sDictScript|raw }}', aListJsFiles) == -1)
+            {
+                sUrlDictFile = "{{ aPage.sDictScript|raw }}";
+                aListJsFiles.push(sUrlDictFile);
+            }
+            {% endif %}
+            {# manage the other Js File #}
+            {% for sJsFile in aPage.aJsFiles %}
+            if ($.inArray('{{ sJsFile|raw }}', aListJsFiles) == -1)
+            {
+                aFilesToLoad{{ sId }}.push('{{ sJsFile|raw|add_itop_version }}');
+                aListJsFiles.push("{{ sJsFile|raw }}");
+            }
+            {% endfor %}
+            var iCurrentIdx{{ sId }} = 0;
+            var iFilesToLoadCount{{ sId }} = aFilesToLoad{{ sId }}.length;
+            if (iFilesToLoadCount{{ sId }}> 0)
+            {
+                var fLoadScript{{ sId }} = function () {
+                    $.when(
+                            $.ajax({
+                                url: aFilesToLoad{{ sId }}[iCurrentIdx{{ sId }}],
+                                dataType: 'script',
+                                cache: true
+                            })
+                            )
+                            .then(function () {
+                                iCurrentIdx{{ sId }}++;
+                                if (iCurrentIdx{{ sId }} !== iFilesToLoadCount{{ sId }})
+                                {
+                                    fLoadScript{{ sId }}();
+                                }
+                                else
+                                {
+                                    {% for sJsInlineOnDomReady in aPage.aJsInlineOnDomReady %}
+                                    {{ sJsInlineOnDomReady|raw }}
+                                    {% endfor %}
+                                }
+                            });
+                };
+                {# first load Dictionary if exist #}
+                if (sUrlDictFile != '')
+                {
+                    $.ajax({
+                        url: '{{ aPage.sDictScript|raw }}',
+                        dataType: 'script',
+                        cache: true
+                    }).done(function (data) {
+                        if (Dict != undefined && data.startsWith("var aDictEntries = {\""))
+                        {
+                            eval(data);
+                            $.extend(Dict._entries, aDictEntries);
+                        }
+                    }).then(function () {
+                        fLoadScript{{ sId }}();
+                    });
+                }
+                else
+                {
+                    fLoadScript{{ sId }}();
+                }
+            }
+            else
+            {
+                {% for sJsInlineOnDomReady in aPage.aJsInlineOnDomReady %}
+                {{ sJsInlineOnDomReady|raw }}
+                {% endfor %}
+            }
+            </script>
+        {% endblock %}
+    {% else %}
+        {% block iboPageJsInlineOnDomReady %}
+            {# first load Dictionnary if exist #}
+            {% if aPage.sDictScript is not empty %}
+                <script type="text/javascript">
+                if ($.inArray('{{ aPage.sDictScript|raw }}', aListJsFiles) == -1)
+                {
+                    aListJsFiles.push("{{ aPage.sDictScript|raw }}");
+                    $.ajax({
+                        url: '{{ aPage.sDictScript|raw }}',
+                        dataType: 'script',
+                        cache: true
+                    }).done(function (data) {
+                        if (Dict != undefined && data.startsWith("var aDictEntries = {\""))
+                        {
+                            eval(data);
+                            $.extend(Dict._entries, aDictEntries);
+                        }
+                    }).then(function () {
+                        {% for sJsInlineOnDomReady in aPage.aJsInlineOnDomReady %}
+                        {{ sJsInlineOnDomReady|raw }}
+                        {% endfor %}
+                    });
+                }
+                else
+                {
+                    {% for sJsInlineOnDomReady in aPage.aJsInlineOnDomReady %}
+                    {{ sJsInlineOnDomReady|raw }}
+                    {% endfor %}
+                }
+                </script>
+            {% else %}
+                {% for sJsInlineOnDomReady in aPage.aJsInlineOnDomReady %}
+                    <script type="text/javascript">
+                    {{ sJsInlineOnDomReady|raw }}
+                    </script>
+                {% endfor %}
+            {% endif %}
+        {% endblock %}
+    {% endif %}
+
+    {% if aDeferredBlocks is not empty %}
+        {# TODO 3.0.0 #}
+        {# <script type="text/javascript"> #}
+        {# $('body').append('{% for oBlock in aDeferredBlocks %}{{ render_block(oBlock, {aPage: aPage})|escape('js')|raw }}{% endfor %}'); #}
+        {# </script> #}
+        {% for oBlock in aDeferredBlocks %}
+            {{ render_block(oBlock, {aPage: aPage})|raw }}
+        {% endfor %}
+    {% endif %}
+
+    {% if sDeferredContent %}
+        <script type="text/javascript">
+            $('body').append('{{ sDeferredContent|raw }}');
+        </script>
+    {% endif %}
+
+    {% block iboPageCssFiles %}
+        {% for aCssFileData in aPage.aCssFiles %}
+            <script type="text/javascript">
+           /* $.ajax({
+			            url: aKBFilesToLoad[iKBCurrentIdx].url,
+			            dataType: aKBFilesToLoad[iKBCurrentIdx].type,
+			            cache: true
+		            })
+		            .done(function(){
+			            if ( (aKBFilesToLoad[iKBCurrentIdx].type === 'text') && ($('head link[type="text/css"][href="' + aKBFilesToLoad[iKBCurrentIdx].url + '"]').length === 0) )
+			            {
+				            $('<link rel="stylesheet" type="text/css" href="' + aKBFilesToLoad[iKBCurrentIdx].url + '">').appendTo('head');
+			            }
+		            })
+            )*/
+                if (!$('link[href="{{ aCssFileData.link }}"]').length) $('<link href="{{ aCssFileData.link }}" rel="stylesheet">').appendTo('head');
+            </script>
+        {% endfor %}
+    {% endblock %}
+
+    {{ aPage.sCapturedOutput|raw }}
+
+{% endapply %}

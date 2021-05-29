@@ -1,0 +1,21 @@
+{# @copyright   Copyright (C) 2010-2021 Combodo SARL #}
+{# @license     http://opensource.org/licenses/AGPL-3.0 #}
+{% apply spaceless %}
+
+    {% if oUIBlock.bEmptySet or oUIBlock.bNotAuthorized %}
+        <div class="ibo-blocklist--empty-text">{{ 'UI:NoObjectToDisplay'|dict_s }}</div>
+    {% endif %}
+
+    {% if oUIBlock.bCreateNew %}
+        <div class="ibo-blocklist--create-new">
+            <a{{ oUIBlock.sLinkTarget }} href="{{ oUIBlock.sAbsoluteUrlAppRoot }}pages/UI.php?operation=new&class={{ oUIBlock.sClass }}&{{ oUIBlock.sParams }}{{ oUIBlock.sDefault }}">
+                {{ 'UI:ClickToCreateNew'|dict_format(oUIBlock.sClassLabel) }}
+            </a>       
+        </div>
+    {% endif %}
+
+    {% for oSubBlock in oUIBlock.GetSubBlocks() %}
+        {{ render_block(oSubBlock, {aPage: aPage}) }}
+    {% endfor %}
+
+{% endapply %}
